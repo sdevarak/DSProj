@@ -1,0 +1,153 @@
+---
+title: "MovieLens - Case Study2"
+author: "Siva Devarakonda"
+date: "May 25, 2015"
+output: slidy_presentation
+---
+
+## Case Study 2: Movie Lens Data Visualization
+- Summary Statistics
+- Histograms
+- Correlation Study
+
+## Slide with R Code and Output
+```{r}
+#Packages to include
+library(RCurl)
+library(ggplot2)
+library(dplyr)
+library(ggvis)
+```
+
+## Initialization of Datasets
+## Part 1:
+```{r}
+d1 = getURL("https://raw.githubusercontent.com/dnchari/DS501_MovieLens/master/Results/unifiedMLDataMulti.csv")
+mlMultiData = read.csv(text=d1)
+summary(mlMultiData)
+levels(mlMultiData$occupation)
+levels(mlMultiData$genre)
+# Movies with ratings > 4.5
+nrow(filter(mlMultiData, rating > 4.5))
+nrow(filter(mlMultiData, rating > 4.5 & gender == c("M")))
+nrow(filter(mlMultiData, rating > 4.5 & gender == c("F")))
+
+# Movies with median rating of 4.5 by Men
+by_movie_title <- filter(mlMultiData, gender == c("M"))
+by_movie_title <- group_by(by_movie_title, movie_title)
+median_rating <- summarise(by_movie_title, count = n(), medrating = median(rating), meanrating = mean(rating))
+ml_median_rating <- filter(median_rating, medrating > 4.5, count > 100)
+ml_mean_rating <- filter(median_rating, meanrating > 4.5)
+
+# Movies with median rating of 4.5 by Women
+by_movie_title <- filter(mlMultiData, gender == c("F"))
+by_movie_title <- group_by(by_movie_title, movie_title)
+median_rating <- summarise(by_movie_title, count = n(), medrating = median(rating))
+median_rating <- filter(median_rating, medrating > 4.5, count > 100)
+nrow(median_rating)
+```
+
+## Part 2:
+## Movie Rating By Genre
+
+```{r}
+qplot(rating, data = mlMultiData, fill = genre)
+# Do not want to see it stacked
+qplot(rating, data = mlMultiData, fill = genre, position = "dodge")
+# Overall Movie Rating by Gender
+qplot(rating, data = mlMultiData, fill = gender, position = "dodge")
+qplot(rating, data = mlMultiData, facets = . ~ genre)
+```
+
+## Plot Histograms
+## Histogram of ratings each movie received
+
+```{r}
+# 2.1 Histogram of number of ratings of all movies
+qplot(rating, data=mlMultiData, geom="histogram")
+```
+
+#2.2 Histogram of number of ratings each movie received
+{r}
+dat <- summarise(group_by(mlMultiData, movie_title), count = n())
+b <- ggplot(dat, aes(count))
+b <- b + xlab("Movies") + ylab("Ratings Counts")
+b <- b + geom_bar()
+```
+
+```{r}
+# 2.3 Histogram of average number of ratings
+mean_rating <- summarise(group_by(mlMultiData, movie_title), count = n(), meanrat = mean(rating))
+b <- ggplot(mean_rating, aes(meanrat))
+b <- b + xlab("Ratings")
+b <- b + geom_bar()
+
+# 2.4 Histogram of average rating for movies which are rated more than a 100 times
+by_movie <- group_by(mlMultiData, movie_title)
+by_movie <- summarise(by_movie, mean(rating), counts=n())
+by_movie <- filter(by_movie, counts>100)
+colnames(by_movie)<-c("movie_title", "av_rating", "counts")
+a <- ggplot(by_movie, aes(av_rating))
+a + geom_histogram()
+a + geom_histogram(aes(fill = ..count..)) + scale_fill_gradient("Count", low = "red", high = "green")
+
+# Average rating by occupation
+by_occ <- group_by(mlMultiData, occupation)
+by_occ <- summarise(by_occ, mean(rating), median(rating), counts=n())
+colnames(by_occ) <- c("occupation", "mean_rating", "median_rating", "counts")
+
+by_occ %>% 
+  ggvis(~occupation, ~counts, fill := 'green') %>%
+  layer_bars(width = 10) %>%
+  set_options(height = 300, width = 400)
+```
+
+# Correlation: Men vs. Women
+# Scatter plot of men vs. women and their mean rating for every movie
+```{r}
+by_movie <- group_by(mlMultiData, movie_title)
+by_f <- filter(by_movie, gender == c("F"))
+by_f <- summarise(by_f, av_f = mean(rating))
+by_m <- filter(by_movie, gender == c("M"))
+by_m <- summarise(by_m, av_m = mean(rating))
+combined <- merge(by_m, by_f,by =c("movie_title") )
+
+ggplot(combined, aes(x=av_f, y=av_m)) +
+    geom_point(shape=1)      # Use hollow circles
+
+ggplot(combined, aes(x=av_f, y=av_m)) +
+    geom_point(shape=1) +    # Use hollow circles
+    geom_smooth(method=lm)   # Add linear regression line 
+                             #  (by default includes 95% confidence region)
+
+ggplot(combined, aes(x=av_f, y=av_m)) +
+    geom_point(shape=1) +    # Use hollow circles
+    geom_smooth(method=lm,   # Add linear regression line
+                se=FALSE)    # Don't add shaded confidence region
+
+ggplot(combined, aes(x=av_f, y=av_m)) +
+    geom_point(shape=1) +    # Use hollow circles
+    geom_smooth()            # Add a loess smoothed fit curve with confidence region
+```
+# Scatter plot of men vs. women and their mean rating for rating count > 200
+
+```{r}
+by_movie <- group_by(mlMultiData, movie_title)
+by_f <- filter(by_movie, gender == c("F"))
+by_f <- summarise(by_f, av_f = mean(rating), counts = n())
+by_f <- filter(by_f, counts > 200)
+by_f["gender"] = c("F")
+by_m <- filter(by_movie, gender == c("M"))
+by_m <- summarise(by_m, av_m = mean(rating), counts = n())
+by_m <- filter(by_m, counts > 200)
+by_m["gender"] = c("M")
+combined <- merge(by_m, by_f,by =c("movie_title") )
+
+# Extend the regression lines beyond the domain of the data
+ggplot(combined, aes(x=av_f, y=av_m)) + geom_point(shape=1) + 
+    scale_colour_hue(l=50) + # Use a slightly darker palette than normal
+    geom_smooth(method=lm,   # Add linear regression lines
+                se=FALSE,    # Don't add shaded confidence region
+                fullrange=TRUE) # Extend regression lines
+
+```

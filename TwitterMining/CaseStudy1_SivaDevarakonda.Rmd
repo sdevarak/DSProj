@@ -1,0 +1,66 @@
+---
+title: "CaseStudy1 DS501"
+Submitted By: Siva Devarakonda
+output: html_document
+---
+```{r, echo=FALSE}
+library(twitteR)
+library(stringr)
+library(qdap)
+```
+
+Problem 1: Sampling Twitter Data with Streaming API about a certain topic
+Total number of tweets collected:
+```{r, echo=FALSE}
+tweets = searchTwitter('#silk+#fashion', n=1000, resultType='mixed')
+stweetsDF = twListToDF(tweets)
+length(stweetsDF)
+```
+
+Problem 2: Analyzing Tweets and Tweet Entities with Frequency Analysis
+```{r, echo=FALSE}
+wordlist <- unlist(lapply(str_extract_all(stweetsDF$text,"[a-zA-Z][a-zA-Z]+"),paste,collapse=" "))
+wordcount <- wfm(wordlist)
+freqwords <- freq_terms(wordlist, n=30, stopwords = c("http", "silk", "fashion", "on", "and", "rt", "https", "co"))
+plot(freqwords)
+```
+
+Problem 2.2 - Top 10 tweets
+```{r, echo=TRUE}
+o <- order(stweetsDF$retweetCount)
+newo = tail(o, 30)
+unique_tweets = unique(stweetsDF$text[newo])
+unique_idx = newo[!duplicated(stweetsDF$text[newo])]
+tbl=melt(unique_tweets,id=unique_idx)
+```
+Problem 2.3
+Find top 10 #hashtags and user mentions
+```{r, echo=TRUE}
+htlist <- unlist(lapply(str_extract_all(stweetsDF$text, "#\\S+"), paste, collapse=" "))
+freq_terms(htlist, 10, stopwords = c("silk", "fashion"))
+
+umlist <- unlist(lapply(str_extract_all(stweetsDF$text, "^@\\w+|\\s@\\w+"), paste, collapse=" "))
+freq_terms(umlist, 10)
+```
+Problem 3 - Popular Twitter Personality
+```{r, echo=FALSE}
+marykom = getUser('MCMarykom')
+followers = twListToDF((marykom$getFollowers()))
+tbl_flwrs=data.table(followers$id[1:20],followers$name[1:20])
+dim(followers)
+friends = twListToDF((marykom$getFriends()))
+tbl_frnds=data.table(friends$id[1:20],friends$name[1:20])
+length(friends)
+fr_fl = intersect(followers$id, friends$id)
+fr_tbl = data.table(friends$id[which(fr_fl %in% followers$id)], friends$name[which(fr_fl %in% followers$id)] )
+```
+Friends and followers list:
+```{r, echo=TRUE}
+View(tbl_flwrs)
+View(tbl_frnds)
+View(fr_tbl)
+```
+Problem 4: Additional Analysis
+```{r, echo=TRUE}
+word_network_plot(stweetsDF$text, stweetsDF$latitude, stweetsDF$longitude)
+```
